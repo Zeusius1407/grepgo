@@ -13,7 +13,7 @@ context lines, and a config file.
 Install the latest tagged release directly:
 
 ```bash
-go install github.com/Zeusius1407/mygrep/cmd/grepgo@latest
+go install github.com/Zeusius1407/grepgo/v2/cmd/grepgo@latest
 ```
 
 This produces a `grepgo` binary in `$(go env GOPATH)/bin`.
@@ -21,8 +21,8 @@ This produces a `grepgo` binary in `$(go env GOPATH)/bin`.
 Or build from a clone:
 
 ```bash
-git clone https://github.com/Zeusius1407/mygrep.git
-cd mygrep
+git clone https://github.com/Zeusius1407/grepgo.git
+cd grepgo
 go build -o grepgo ./cmd/grepgo
 ```
 
@@ -155,13 +155,14 @@ missing `--config` path.
 The version is derived from the Git repository at build time via
 `runtime/debug.ReadBuildInfo()` — no `-ldflags` required (`internal/version.go`):
 
-- Installed from a tag (e.g. `go install …/grepgo@v1.3.0`) → reports that tag.
+- Installed from a tag (e.g. `go install …/grepgo/v2/cmd/grepgo@v2.0.1`) →
+  reports that tag.
 - A local build → reports the short commit hash, with `-dirty` appended when the
   working tree has uncommitted changes.
 
 ```bash
 grepgo --version
-# grepgo version v1.3.0
+# grepgo version v2.0.1
 ```
 
 ## Exit codes

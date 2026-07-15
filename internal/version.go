@@ -8,9 +8,9 @@ import (
 // buildVersion derives the version string from the module's build metadata,
 // which the Go toolchain embeds automatically from the Git repository — no
 // -ldflags needed. When the binary is installed from a tagged release (e.g.
-// `go install .../mygrep@v0.1.0`) it reports that tag; a local build reports
-// the short Git commit it was built from, with "-dirty" if the working tree
-// had uncommitted changes.
+// `go install .../grepgo/v2/cmd/grepgo@v2.0.1`) it reports that tag; a local
+// build reports the short Git commit it was built from, with "-dirty" if the
+// working tree had uncommitted changes.
 func buildVersion() string {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -31,16 +31,23 @@ func buildVersion() string {
 	}
 	dirty := modified == "true"
 
-	// A clean release tag is the nicest thing to report. For untagged VCS
-	// builds Go synthesizes a "v0.0.0-<time>-<commit>" pseudo-version, and for
-	// plain local builds it uses "(devel)"; in both cases fall back to the raw
-	// commit so we don't print a redundant, noisy string.
+	// A clean release tag is the nicest thing to report. Go only stamps a real
+	// tag into Main.Version when HEAD sits exactly on it with a clean tree;
+	// otherwise it synthesizes a pseudo-version (e.g. "v0.0.0-<time>-<commit>"
+	// or "v1.2.3-0.<time>-<commit>") or uses "(devel)" for a plain local build.
+	// In those cases we fall back to the short commit instead of printing a
+	// noisy synthesized string.
 	//
 	// Go also appends its own "+dirty" build-metadata suffix to Main.Version
 	// when the tree is modified; strip it so we don't double up with the
 	// "-dirty" marker we add from vcs.modified below.
 	tag := strings.TrimSuffix(info.Main.Version, "+dirty")
-	isReleaseTag := tag != "" && tag != "(devel)" && !strings.HasPrefix(tag, "v0.0.0-")
+	isReleaseTag := tag != "" && tag != "(devel)"
+	// A pseudo-version embeds the commit hash; that means it isn't a hand-cut
+	// release tag, so prefer the plain short commit.
+	if revision != "" && strings.Contains(tag, revision) {
+		isReleaseTag = false
+	}
 
 	var version string
 	switch {

@@ -1,4 +1,4 @@
-module github.com/Zeusius1407/grepgo
+module github.com/Zeusius1407/grepgo/v2
 
 go 1.26.5
 
