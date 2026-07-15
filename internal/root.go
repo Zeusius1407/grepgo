@@ -10,7 +10,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +25,8 @@ type searchOpts struct {
 	count       bool
 	withName    bool // prefix output with the file name (recursive / multi-file)
 	color       bool // highlight matched text with ANSI escapes
+	before      int  // lines of context to print before a match (-B)
+	after       int  // lines of context to print after a match (-A)
 }
 
 // ANSI escape sequences used to highlight matches, mirroring grep's default.
@@ -61,14 +65,56 @@ func highlight(line, check string, opts searchOpts) string {
 	return b.String()
 }
 
-// searchReader scans one reader for matching lines and prints them. It returns
-// whether at least one line matched. When opts.count is set it prints the count
-// (prefixed with the file name when opts.withName is set) instead of the lines.
+// bufLine holds a line and its 1-based number so before-context can be printed
+// once a later line matches.
+type bufLine struct {
+	num  int
+	text string
+}
+
+// searchReader scans one reader for matching lines and prints them, including
+// any requested before/after context lines. It returns whether at least one
+// line matched. When opts.count is set it prints only the match count (prefixed
+// with the file name when opts.withName is set) and ignores context.
 func searchReader(reader *os.File, name string, opts searchOpts) bool {
 	scanner := bufio.NewScanner(reader)
 	lineNum := 0
 	found := false
 	counter := 0
+
+	hasContext := opts.before > 0 || opts.after > 0
+	lastPrinted := 0   // number of the most recently printed line
+	hasPrinted := false // whether anything has been printed yet (for "--")
+	pending := 0        // remaining after-context lines still to print
+	var before []bufLine
+
+	// printLine emits one output line. isMatch selects grep's separators: ":"
+	// for matching lines, "-" for context lines (used between the file name,
+	// the line number, and the text). A "--" divider is written between
+	// non-adjacent groups when context is in effect, mirroring grep.
+	printLine := func(num int, text string, isMatch bool) {
+		if hasContext && hasPrinted && num > lastPrinted+1 {
+			fmt.Println("--")
+		}
+		sep := "-"
+		if isMatch {
+			sep = ":"
+		}
+		var b strings.Builder
+		if opts.withName {
+			b.WriteString(name)
+			b.WriteString(sep)
+		}
+		if opts.lineNumbers {
+			b.WriteString(strconv.Itoa(num))
+			b.WriteString(sep)
+		}
+		b.WriteString(text)
+		fmt.Println(b.String())
+		lastPrinted = num
+		hasPrinted = true
+	}
+
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Text()
@@ -86,9 +132,11 @@ func searchReader(reader *os.File, name string, opts searchOpts) bool {
 			found = true
 			counter++
 			if !opts.count {
-				prefix := ""
-				if opts.withName {
-					prefix = name + ":"
+				// Emit buffered before-context that hasn't been printed yet.
+				for _, bl := range before {
+					if bl.num > lastPrinted {
+						printLine(bl.num, bl.text, false)
+					}
 				}
 				out := line
 				// Coloring highlights the matched text, so it only makes sense
@@ -96,11 +144,20 @@ func searchReader(reader *os.File, name string, opts searchOpts) bool {
 				if opts.color && !opts.invert {
 					out = highlight(line, check, opts)
 				}
-				if opts.lineNumbers {
-					fmt.Printf("%s%d:%s\n", prefix, lineNum, out)
-				} else {
-					fmt.Printf("%s%s\n", prefix, out)
-				}
+				printLine(lineNum, out, true)
+				pending = opts.after
+			}
+		} else if pending > 0 && !opts.count {
+			// After-context following the most recent match.
+			printLine(lineNum, line, false)
+			pending--
+		}
+
+		// Remember this line as potential before-context for a later match.
+		if opts.before > 0 {
+			before = append(before, bufLine{lineNum, line})
+			if len(before) > opts.before {
+				before = before[len(before)-opts.before:]
 			}
 		}
 	}
@@ -133,12 +190,34 @@ var rootCmd = &cobra.Command{
 		recursive, _ := cmd.Flags().GetBool("recursive")
 		colorWhen, _ := cmd.Flags().GetString("color")
 
+		// Context flags: -A/-B set after/before independently; -C sets both
+		// unless the more specific flag was given explicitly.
+		after, _ := cmd.Flags().GetInt("after-context")
+		before, _ := cmd.Flags().GetInt("before-context")
+		context, _ := cmd.Flags().GetInt("context")
+		if context > 0 {
+			if !cmd.Flags().Changed("after-context") {
+				after = context
+			}
+			if !cmd.Flags().Changed("before-context") {
+				before = context
+			}
+		}
+		if after < 0 {
+			after = 0
+		}
+		if before < 0 {
+			before = 0
+		}
+
 		opts := searchOpts{
 			pattern:     args[0],
 			ignoreCase:  ignoreCase,
 			lineNumbers: lineNumbers,
 			invert:      invert,
 			count:       count,
+			before:      before,
+			after:       after,
 		}
 		if ignoreCase {
 			opts.pattern = strings.ToLower(opts.pattern)
@@ -251,4 +330,7 @@ func init() {
 	rootCmd.Flags().BoolP("count", "c", false, "only show count of matches")
 	rootCmd.Flags().BoolP("recursive", "r", false, "recursively search directories")
 	rootCmd.Flags().String("color", "auto", "highlight matches: auto|always|never")
+	rootCmd.Flags().IntP("after-context", "A", 0, "print NUM lines of trailing context after matches")
+	rootCmd.Flags().IntP("before-context", "B", 0, "print NUM lines of leading context before matches")
+	rootCmd.Flags().IntP("context", "C", 0, "print NUM lines of output context (before and after)")
 }
