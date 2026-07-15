@@ -1,4 +1,4 @@
-module github.com/Zeusius1407/mygrep
+module github.com/Zeusius1407/grepgo
 
 go 1.26.5
 
