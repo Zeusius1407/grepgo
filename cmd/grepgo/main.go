@@ -4,7 +4,7 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 */
 package main
 
-import "github.com/Zeusius1407/mygrep/cmd"
+import "github.com/Zeusius1407/mygrep/internal"
 
 func main() {
 	cmd.Execute()
