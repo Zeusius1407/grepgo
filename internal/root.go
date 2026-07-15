@@ -176,9 +176,9 @@ func searchReader(reader *os.File, name string, opts searchOpts) bool {
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "mygrep [flags] <pattern> [file]",
+	Use:   "grepgo [flags] <pattern> [file]",
 	Short: "A grep clone written in Go",
-	Long: `mygrep is a CLI tool that searches files for lines that match to the given pattern`,
+	Long: `grepgo is a CLI tool that searches files for lines that match to the given pattern`,
 	Args: cobra.RangeArgs(1, 2),
 	// Matching lines are printed by Run itself; the exit code is set here so
 	// that "no match" reports 1 the way grep does.
