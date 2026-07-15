@@ -178,8 +178,29 @@ func searchReader(reader *os.File, name string, opts searchOpts) bool {
 var rootCmd = &cobra.Command{
 	Use:   "grepgo [flags] <pattern> [file]",
 	Short: "A grep clone written in Go",
-	Long: `grepgo is a CLI tool that searches files for lines that match to the given pattern`,
+	Long: `grepgo is a CLI tool that searches files for lines that match the given pattern.
+
+Configuration file:
+  grepgo reads default flag values from a .grepgorc file, using the first that
+  exists (in order):
+    1. the path given by --config
+    2. ./.grepgorc      (current directory)
+    3. $HOME/.grepgorc  (home directory)
+
+  Command-line flags override the config file, which overrides the built-in
+  defaults. The file holds one "setting = value" per line; blank lines and
+  lines beginning with '#' are ignored. Setting names are the long flag names.
+
+  Example .grepgorc:
+    # always number lines and show two lines of context
+    line-number = true
+    context     = 2
+    color       = always`,
 	Args: cobra.RangeArgs(1, 2),
+	// Load .grepgorc defaults before Run reads the flag values.
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return loadConfig(cmd)
+	},
 	// Matching lines are printed by Run itself; the exit code is set here so
 	// that "no match" reports 1 the way grep does.
 	Run: func(cmd *cobra.Command, args []string) {
@@ -333,4 +354,5 @@ func init() {
 	rootCmd.Flags().IntP("after-context", "A", 0, "print NUM lines of trailing context after matches")
 	rootCmd.Flags().IntP("before-context", "B", 0, "print NUM lines of leading context before matches")
 	rootCmd.Flags().IntP("context", "C", 0, "print NUM lines of output context (before and after)")
+	rootCmd.Flags().String("config", "", "path to config file (default: ./.grepgorc or $HOME/.grepgorc)")
 }
