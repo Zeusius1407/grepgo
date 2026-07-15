@@ -234,6 +234,9 @@ func Execute() {
 }
 
 func init() {
+	// Version is derived from the Git repository at build time (see version.go).
+	rootCmd.Version = buildVersion()
+
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
